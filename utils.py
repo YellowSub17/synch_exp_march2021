@@ -65,12 +65,12 @@ def mask_correction(  corr, maskcorr ):
     corr[imask] *= 1.0/maskcorr[imask]
     return corr
 
-# def mask_correction(  corr, maskcorr ):
-    # corr *= 1.0/maskcorr
-    # return corr
-
 
 def read_h5s(path, i=1):
+    '''
+    path: path to directory of .h5 files
+    i: how many h5 files to read in that directory
+    '''
 
 
     h5s = os.listdir(path)
@@ -125,7 +125,7 @@ if __name__ =='__main__':
     # plot_fns.plot_polar(mask_cor, title='Mask Corr.')
 
 
-    for i in range(2,8):
+    for i in range(14,17):
 
 
         #####Read H5
@@ -152,7 +152,6 @@ if __name__ =='__main__':
     # plot_fns.plot_q(d_cor, iq, f'Data Corr., q={iq}')
     # plot_fns.plot_sumtheta(d_cor, 'Data Corr., sumTheta')
     
-
 
 
 
