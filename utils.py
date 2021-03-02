@@ -70,31 +70,30 @@ def mask_correction(  corr, maskcorr ):
     # return corr
 
 
-def read_h5s(i=1):
+def read_h5s(path, i=1):
 
 
-    h5s = os.listdir('data')
+    h5s = os.listdir(path)
     assert i<=len(h5s), 'i>len(h5s)'
     mask = make_mask()
     mask_loc = np.where(mask==0)
     sum_data = np.zeros( (EIGER_nx, EIGER_ny))
 
     for h5 in range(i):
+        print(f'{path}/{h5s[h5]}')
 
-        f = h5py.File(f'data/{h5s[h5]}')
+        with h5py.File(f'{path}/{h5s[h5]}') as f:
 
-        d = np.array(f['entry/data/data'])[::20,:,:]
-
-
-        sum_data += np.sum(d, 0)
+            d = np.array(f['entry/data/data'])
+            sum_data += np.sum(d, 0)
 
     return sum_data*mask
 
 
 def make_mask():
 
-    h5s = os.listdir('data')
-    f = h5py.File(f'data/{h5s[0]}')
+    h5s = os.listdir('data/mo/2')
+    f = h5py.File(f'data/mo/2/{h5s[0]}')
 
     d = np.array(f['entry/data/data'])
     mask = np.ones((EIGER_nx, EIGER_ny))
@@ -115,10 +114,10 @@ if __name__ =='__main__':
 
 
 
-    mask = make_mask()
-    mask_pol = to_polar(mask, 500,720,0, 500, 0, 360, int(EIGER_nx/2), int(EIGER_ny/2))
-    mask_cor = polar_angular_correlation(mask_pol)
-
+    #####Create mask
+    # mask = make_mask()
+    # mask_pol = to_polar(mask, 500,720,0, 500, 0, 360, int(EIGER_nx/2), int(EIGER_ny/2))
+    # mask_cor = polar_angular_correlation(mask_pol)
 
     #####Plot Mask
     # plot_fns.plot_im(mask, title='Mask')
@@ -126,23 +125,37 @@ if __name__ =='__main__':
     # plot_fns.plot_polar(mask_cor, title='Mask Corr.')
 
 
-    d_sum = read_h5s(i=1)
-    d_pol = to_polar(d_sum, 500,720,0,500,0,360,  int(EIGER_nx/2), int(EIGER_ny/2))
-    d_cor = polar_angular_correlation(d_pol)
-    d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
+    for i in range(2,8):
 
-    #####Plot Data
-    plot_fns.plot_im(d_sum, 'Data')
 
-    #####Plot Data (Polar)
-    plot_fns.plot_polar(d_pol, 'Data Polar')
-    plot_fns.plot_q(d_pol, 115,'Data Polar, q=115')
-    plot_fns.plot_sumtheta(d_pol, 'Data Polar, sumTheta')
+        #####Read H5
+        d_sum = read_h5s(f'data/mo/{i}',i=1)
+        #####Plot Data
+        plot_fns.plot_im(d_sum, f'Data, run {i}')
 
-    #####Plot Data (Corr)
-    plot_fns.plot_polar(d_cor, 'Data Corr.')
-    plot_fns.plot_q(d_cor, 115,'Data Corr., q=115')
-    plot_fns.plot_sumtheta(d_cor, 'Data Corr., sumTheta')
+
+        #####Create polar
+        d_pol = to_polar(d_sum, 500,720,0,500,0,360,  int(EIGER_nx/2), int(EIGER_ny/2))
+        #####Plot Data (Polar)
+        # plot_fns.plot_polar(d_pol, 'Data Polar')
+        plot_fns.plot_sumtheta(d_pol, f'Data Polar, sumTheta, run: {i}')
+        iq = 104
+        # plot_fns.plot_q(d_pol, iq, f'Data Polar, q={iq}')
+
+
+
+    #####Create Correlation
+    # d_cor = polar_angular_correlation(d_pol)
+    # d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
+    # #####Plot Correlation
+    # plot_fns.plot_polar(d_cor, 'Data Corr.')
+    # plot_fns.plot_q(d_cor, iq, f'Data Corr., q={iq}')
+    # plot_fns.plot_sumtheta(d_cor, 'Data Corr., sumTheta')
+    
+
+
+
+
 
 
 

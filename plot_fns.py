@@ -26,7 +26,7 @@ def plot_polar(pol, title=''):
 
 def plot_im(im, title=''):
     plt.figure()
-    plt.imshow(im,origin='lower')
+    plt.imshow(im)
     plt.title(f'{title}')
 
 
