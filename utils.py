@@ -11,7 +11,7 @@ from PIL import Image
 import os
 from skimage.transform import warp_polar
 
-from plot_fns import plot_d_polar_cor
+import plot_fns
 
 #well f2 dataset 9 frame 102
 EIGER_nx = 1062
@@ -21,24 +21,7 @@ MAX_PX_COUNT = 4294967295
 
 
 
-def polar_plot( data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny, submean=False ):
-
-    # r and theta arrays
-    rarr = np.outer( np.arange(nr)*(rmax-rmin)/float(nr) + rmin, np.ones(nth) )
-    tharr = np.outer( np.ones(nr), np.arange(nth)*(thmax-thmin)/float(nth) + thmin)
-    newx = rarr*np.cos( tharr ) + cenx
-    newy = rarr*np.sin( tharr ) + ceny
-    newdata = sdn.map_coordinates( data, [newx.flatten(), newy.flatten()], order=3 )
-
-    out = newdata.reshape( nr, nth )
-    if submean == True:
-        out = self.polar_plot_subtract_rmean( out  )
-
-    return out
-
-
-
-def polar_plot2(data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny):
+def to_polar(data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny):
 
     x = warp_polar( data, center=(cenx,ceny), radius=rmax)
     return np.rot90(x, k=3)
@@ -47,11 +30,7 @@ def polar_plot2(data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny):
 
 
 
-
-
-
-
-def polarplot_angular_correlation(  polar, polar2=None):
+def polar_angular_correlation(  polar, polar2=None):
     fpolar = np.fft.fft( polar, axis=1 )
 
     if polar2 != None:
@@ -64,7 +43,7 @@ def polarplot_angular_correlation(  polar, polar2=None):
 
 
 
-def polarplot_angular_intershell_correlation( polar, polar2=None):
+def polar_angular_intershell_correlation( polar, polar2=None):
 
     fpolar = np.fft.fft( polar, axis=1 )
 
@@ -95,7 +74,7 @@ def read_h5s(i=1):
 
 
     h5s = os.listdir('data')
-    assert i<len(h5s), 'i<len(h5s)'
+    assert i<=len(h5s), 'i>len(h5s)'
     mask = make_mask()
     mask_loc = np.where(mask==0)
     sum_data = np.zeros( (EIGER_nx, EIGER_ny))
@@ -137,34 +116,36 @@ if __name__ =='__main__':
 
 
     mask = make_mask()
-    mask_pol = polar_plot2(mask, 500,720,0, 500, 0, 360, int(EIGER_nx/2), int(EIGER_ny/2))
+    mask_pol = to_polar(mask, 500,720,0, 500, 0, 360, int(EIGER_nx/2), int(EIGER_ny/2))
+    mask_cor = polar_angular_correlation(mask_pol)
 
-    mask_cor = polarplot_angular_correlation(mask_pol)
 
-#     plt.figure()
-    # plt.imshow(mask)
-
-    # plt.figure()
-    # plt.imshow(mask_pol)
-
-    # plt.figure()
-    # plt.imshow(mask_cor)
+    #####Plot Mask
+    # plot_fns.plot_im(mask, title='Mask')
+    # plot_fns.plot_polar(mask_pol, title='Mask Polar')
+    # plot_fns.plot_polar(mask_cor, title='Mask Corr.')
 
 
     d_sum = read_h5s(i=1)
-
-    d_pol = polar_plot2(d_sum, 500,720,0,500,0,360,  int(EIGER_nx/2), int(EIGER_ny/2))
-
-    d_cor = polarplot_angular_correlation(d_pol)
-
-    # d_q_ave = np.mean(d_cor, axis=1)
-    # d_cor -= np.outer(d_q_ave, np.ones(360))
-
-
-
+    d_pol = to_polar(d_sum, 500,720,0,500,0,360,  int(EIGER_nx/2), int(EIGER_ny/2))
+    d_cor = polar_angular_correlation(d_pol)
     d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
 
-    plot_d_polar_cor(d_sum, d_pol, d_cor)
+    #####Plot Data
+    plot_fns.plot_im(d_sum, 'Data')
+
+    #####Plot Data (Polar)
+    plot_fns.plot_polar(d_pol, 'Data Polar')
+    plot_fns.plot_q(d_pol, 115,'Data Polar, q=115')
+    plot_fns.plot_sumtheta(d_pol, 'Data Polar, sumTheta')
+
+    #####Plot Data (Corr)
+    plot_fns.plot_polar(d_cor, 'Data Corr.')
+    plot_fns.plot_q(d_cor, 115,'Data Corr., q=115')
+    plot_fns.plot_sumtheta(d_cor, 'Data Corr., sumTheta')
+
+
+
 
 
 #     im = Image.open('testing2.png')
@@ -178,9 +159,7 @@ if __name__ =='__main__':
     # plt.imshow(x, origin='lower', extent=[0,360, 0, 500])
     # plt.title('Unwrapped Test Image (polar_plot2)')
 
-    # plt.figure()
-    # plt.imshow(y, origin='lower', extent=[0,360, 0, 500])
-    # plt.title('Unwrapped Test Image (polar_plot)')
+
 
     plt.show()
 
