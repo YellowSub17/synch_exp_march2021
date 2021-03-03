@@ -112,8 +112,8 @@ def sum_h5s(path, i=None):
         i=len(h5s)
 
     sum_data = np.zeros( (EIGER_nx, EIGER_ny))
+
     end_h5_str= '0'*(5-len(str(len(h5s)-1))) + str(len(h5s)-1)
-    print(end_h5_str)
 
     for h5 in range(i):
         if 'master' in h5s[h5]:
@@ -167,23 +167,26 @@ if __name__ =='__main__':
 
 
 
-    rmin = 80
+    rmin = 0
     q = qscale( 500-rmin ) 
 
-    group='cthot'
-    run_start = 69
+    groups=['vortmo','vortmo', 'moplate']
+    runs = [76, 77, 2]
+
+
+    
 
     mask = make_mask('/data/xfm/data/2021r1/Binns_16777/raw/eiger/ctt/66249_60/')
     mask_pol = to_polar(mask,  500-rmin,720,rmin,500,0,2*np.pi,  int(EIGER_nx/2), int(EIGER_ny/2))
     mask_cor = polar_angular_correlation(mask_pol)
 
-    for run in range(run_start,run_start+1):
+    for run, group in zip(runs,groups):
 
         path = f'/data/xfm/data/2021r1/Binns_16777/raw/eiger/{group}/{66189+run}_{run}/'
 
 
         #####Read H5
-        d_sum = sum_h5s(path)*mask
+        d_sum = sum_h5s(path, i=1)*mask
 
         
         #####Plot Data
@@ -195,16 +198,16 @@ if __name__ =='__main__':
 
         #####Plot Data (Polar)
         plot_fns.plot_polar(d_pol, title=f'Data Polar, group {group}, run: {run}')
-        plot_fns.plot_sumtheta(d_pol, title=f'Data Polar, sumTheta, group {group}, run: {run}')
+        plot_fns.plot_sumtheta(d_pol,q=q, title=f'Data Polar, sumTheta, group {group}, run: {run}')
 
 
 
-        #####Create Correlation
-        d_cor = polar_angular_correlation(d_pol, sub_tmean=True)
-        d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
-        #####Plot Correlation
-        plot_fns.plot_polar(d_cor, title='Data Corr.' )
-        plot_fns.plot_sumtheta(d_cor,  title='Data Corr., sumTheta')
+        # #####Create Correlation
+        # d_cor = polar_angular_correlation(d_pol, sub_tmean=True)
+        # d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
+        # #####Plot Correlation
+        # plot_fns.plot_polar(d_cor, title='Data Corr.' )
+        # plot_fns.plot_sumtheta(d_cor,q=q,  title='Data Corr., sumTheta')
     
 
 
