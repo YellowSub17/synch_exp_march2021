@@ -16,43 +16,46 @@ import plot_fns
 #well f2 dataset 9 frame 102
 EIGER_nx = 1062
 EIGER_ny = 1028
-MAX_PX_COUNT = 4294967295
+MAX_PX_COUNT = 2**32-1
 
 
 
 
-#def to_polar(data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny):
-#
-#    x = warp_polar( data, center=(cenx,ceny), radius=rmax)
-#    return np.rot90(x, k=3)
 
 def to_polar( data, nr, nth, rmin, rmax, thmin, thmax, cenx, ceny):
+        '''
+        data: image to unwrap
+        nr: number of theta bins
+        nth: number of theta bins
+        rmin: minimum r value
+        rmax: maximum r value
+        thmin: minimum theta value
+        thmax: maximum theta value
+        cenx: center x pixel of the data
+        ceny: center y pixel of the data
+        '''
 
         # r and theta arrays
         rarr = np.outer( np.arange(nr)*(rmax-rmin)/float(nr) + rmin, np.ones(nth) )
         tharr = np.outer( np.ones(nr), np.arange(nth)*(thmax-thmin)/float(nth) + thmin)
         newx = rarr*np.cos( tharr ) + cenx
         newy = rarr*np.sin( tharr ) + ceny
-        # plt.imshow(rarr)
-        # plt.figure()
-        # plt.imshow(tharr)
-        # plt.figure()
 
         newdata = sdn.map_coordinates( data, [newx.flatten(), newy.flatten()], order=3 )
 
         out = newdata.reshape( nr, nth )
 
 
-        # if sub_tmean:
-            # ave = np.mean(out, axis=1)
-            # print(ave.shape)
-            # sub_a = np.outer(out,np.ones(out.shape[1]))
-            # out -= sub_a
         return out
 
 
 
 def polar_angular_correlation(  polar, polar2=None, sub_tmean=False):
+    '''
+    polar: unwraped polar image
+    polar2: optional cross correlation polar image
+    sub_tmean: optional subtraction of angular average per q
+    '''
     fpolar = np.fft.fft( polar, axis=1 )
 
     if polar2 != None:
@@ -61,7 +64,11 @@ def polar_angular_correlation(  polar, polar2=None, sub_tmean=False):
     else:
         out = np.fft.ifft( fpolar.conjugate() * fpolar, axis=1 )
 
+    
     out = np.real(out)
+    
+    out = out[:, :int(out.shape[1]/2)]
+
 
     if sub_tmean:
         ave = np.mean(out, axis=1)
@@ -90,45 +97,53 @@ def polar_angular_intershell_correlation( polar, polar2=None):
 
     return out
 
+
 def mask_correction(  corr, maskcorr ):
     imask = np.where( maskcorr != 0 )
     corr[imask] *= 1.0/maskcorr[imask]
     return corr
 
 
-def sum_h5s(path, i=None):
+def sum_run(path, i=None):
+
     '''
     path: path to directory of .h5 files
     i: how many h5 files to read in that directory
     '''
 
-    # print(path)
     h5s = os.listdir(path)
-    if i is None:
-        i=len(h5s)
-    elif i>len(h5s):
-        print('number of h5s to sum is greater that number of h5s in path')
-        print('summing all h5s in path')
-        i=len(h5s)
+    assert len(h5s) > 2, 'path must have more than one (+plus master) h5 file'
+    h5s.sort()
+    h5s = h5s[:-2] #remove master and last h5 (contains date dump)
+    print(h5s)
 
     sum_data = np.zeros( (EIGER_nx, EIGER_ny))
 
-    end_h5_str= '0'*(5-len(str(len(h5s)-1))) + str(len(h5s)-1)
+    for h5 in h5s[:i]:
+        print(f'reading: {h5}')
 
-    for h5 in range(i):
-        if 'master' in h5s[h5]:
-            continue
-        if end_h5_str in h5s[h5]:
-            continue
-        print(f'reading: {h5s[h5]}')
-
-        with h5py.File(f'{path}/{h5s[h5]}') as f:
-
+        with h5py.File(f'{path}/{h5}') as f:
             d = np.array(f['entry/data/data'])
+
         sum_data += np.sum(d, 0)
 
     return sum_data
 
+
+
+def single_frame(path, h5, i=[0]):
+
+    h5s = os.listdir(path)
+    
+    with h5py.File(f'{path}/{h5s[h5]}') as f:
+
+        d = np.array(f['entry/data/data'])
+
+    out = np.sum(d[(np.array(i)),...], 0)
+
+
+
+    return out
 
 def make_mask(path):
 
@@ -144,7 +159,7 @@ def make_mask(path):
 
     return mask
 
-def qscale(npix,pe=18500,z=0.6):
+def qscale(npix,pmin=0,pe=18500,z=0.68):
     
     hc = 12398.4  #eV / A
     wl = hc/pe    # wavelength in angstrom
@@ -152,7 +167,7 @@ def qscale(npix,pe=18500,z=0.6):
     # print("wavelength = ", wl, "A")
     pw = 75e-6   #pixel width
     
-    q = np.arange(npix)
+    q = np.arange(npix-pmin)+pmin
     
     qout = 2*np.pi*(2/wl)*np.sin(np.arctan(pw*q/z)/2.0)
     #d = 2*np.pi / qmax
@@ -167,13 +182,25 @@ if __name__ =='__main__':
 
 
 
-    rmin = 0
-    q = qscale( 500-rmin ) 
+    rmin = 80
+    q = qscale( 500,rmin ) 
 
-    groups=['vortmo','vortmo', 'moplate']
-    runs = [76, 77, 2]
+    #groups=['vortmo','vortmo', 'vortmo', 'vortmo', 'vortmo']
+    #runs = [76, 77, 78, 79, 80]
+
+    # groups = ['vortmo']
+    # runs = [93]
+
+    # groups = ['capillary']
+    # runs = [44]
+
+    # groups = ['dlc', 'dlc']
+    # runs = [89,90]
 
 
+    groups = ['vortmo', 'vortmo']
+
+    runs=[93, 76]
     
 
     mask = make_mask('/data/xfm/data/2021r1/Binns_16777/raw/eiger/ctt/66249_60/')
@@ -186,29 +213,43 @@ if __name__ =='__main__':
 
 
         #####Read H5
-        d_sum = sum_h5s(path, i=1)*mask
+        d_sum = sum_run(path, i=1)*mask
 
-        
+        # frame = single_frame(path,0)*mask
+        # plot_fns.plot_im(frame, 'single frame')
+
+
         #####Plot Data
-        plot_fns.plot_im(d_sum, f'Data, group {group}, run {run}')
+        # plot_fns.plot_im(d_sum, f'Data, group {group}, run {run}')
 
+        cenx = int(EIGER_nx/2)+0.25
+        ceny = int(EIGER_ny/2)
 
         #####Create polar data
-        d_pol = to_polar(d_sum, 500-rmin,720,rmin,500,0,2*np.pi,  int(EIGER_nx/2), int(EIGER_ny/2))
+        d_pol = to_polar(d_sum, 500-rmin,720,rmin,500,0,2*np.pi, cenx, ceny)
 
         #####Plot Data (Polar)
-        plot_fns.plot_polar(d_pol, title=f'Data Polar, group {group}, run: {run}')
+        # plot_fns.plot_polar(d_pol, title=f'Data Polar, group {group}, run: {run}')
         plot_fns.plot_sumtheta(d_pol,q=q, title=f'Data Polar, sumTheta, group {group}, run: {run}')
 
+        # power = 4.0
+        # q2d = np.outer( q**power,np.ones(720))
 
+        # cth = np.outer(np.ones(len(q)), np.cos(4*np.pi*np.arange(720)/720.0) )
+        # ic = np.where(np.abs(cth)>5e-2)
 
         # #####Create Correlation
         # d_cor = polar_angular_correlation(d_pol, sub_tmean=True)
         # d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
+        # d_cor *= q2d
+        # #d_cor[ic] *= 1.0/np.abs(cth[ic])
         # #####Plot Correlation
-        # plot_fns.plot_polar(d_cor, title='Data Corr.' )
+        # # # plot_fns.plot_polar(d_cor, title='Data Corr.' )
+        # plt.colorbar()
+        # plt.clim([np.min(d_cor)*0.1,np.max(d_cor)*0.05])
         # plot_fns.plot_sumtheta(d_cor,q=q,  title='Data Corr., sumTheta')
-    
+        # plt.figure()
+        # plt.plot(d_cor[71,:]) 
 
 
 
