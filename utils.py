@@ -4,16 +4,13 @@ import numpy as np
 import scipy.ndimage as sdn
 import h5py
 
-#import hdf5plugin
 import matplotlib.pyplot as plt
 
 from PIL import Image
 import os
-#from skimage.transform import warp_polar
 
 import plot_fns
 
-#well f2 dataset 9 frame 102
 EIGER_nx = 1062
 EIGER_ny = 1028
 MAX_PX_COUNT = 2**32-1
@@ -131,10 +128,40 @@ def sum_run(path, i=None):
 
 
 
+
+
+def correlate_run(path,nr,nth,rmin,rmax,thmin,thmax,cenx,ceny, i=None):
+
+    '''
+    path: path to directory of .h5 files
+    i: how many h5 files to read in that directory
+    '''
+
+    h5s = os.listdir(path)
+    assert len(h5s) > 2, 'path must have more than one (+plus master) h5 file'
+    h5s.sort()
+    h5s = h5s[:-2] #remove master and last h5 (contains date dump)
+    print(h5s)
+
+    cor_data = np.zeros( (nr, int(nth/2)))
+
+    for h5 in h5s[:i]:
+        print(f'reading: {h5}')
+
+        with h5py.File(f'{path}/{h5}') as f:
+            d = np.array(f['entry/data/data'])[:,:,::10]
+
+        for i in range(d.shape[-1]):
+            d_pol = to_polar(d[...,i],nr,nth,rmin,rmax,thmin,thmax,cenx,ceny)
+            d_cor = polar_angular_correlation(  d_pol, sub_tmean=True)
+            cor_data +=d_cor
+
+    return cor_data
+
 def single_frame(path, h5, i=[0]):
 
     h5s = os.listdir(path)
-    
+
     with h5py.File(f'{path}/{h5s[h5]}') as f:
 
         d = np.array(f['entry/data/data'])
@@ -148,7 +175,6 @@ def single_frame(path, h5, i=[0]):
 def make_mask(path):
 
     h5s = os.listdir(path)
-    
     with h5py.File(f'{path}/{h5s[0]}') as f:
 
         d = np.array(f['entry/data/data'])
@@ -159,16 +185,12 @@ def make_mask(path):
 
     return mask
 
-def qscale(npix,pmin=0,pe=18500,z=0.68):
-    
+def qscale(npix,pmin=0,pe=18500,z=0.15):
     hc = 12398.4  #eV / A
     wl = hc/pe    # wavelength in angstrom
-    
     # print("wavelength = ", wl, "A")
     pw = 75e-6   #pixel width
-    
     q = np.arange(npix-pmin)+pmin
-    
     qout = 2*np.pi*(2/wl)*np.sin(np.arctan(pw*q/z)/2.0)
     #d = 2*np.pi / qmax
     return qout
@@ -181,9 +203,13 @@ def qscale(npix,pmin=0,pe=18500,z=0.68):
 if __name__ =='__main__':
 
 
+    cenx = int(EIGER_nx/2)+0.25
+    ceny = int(EIGER_ny/2)
 
     rmin = 80
-    q = qscale( 500,rmin ) 
+    rmax = 300
+    q = qscale( rmax,rmin )
+    q2d = np.outer( q**4,np.ones(360))
 
     #groups=['vortmo','vortmo', 'vortmo', 'vortmo', 'vortmo']
     #runs = [76, 77, 78, 79, 80]
@@ -194,80 +220,70 @@ if __name__ =='__main__':
     # groups = ['capillary']
     # runs = [44]
 
-    # groups = ['dlc', 'dlc']
-    # runs = [89,90]
-
+    # groups = ['dlc', 'dlc','dlc', 'dlc']
+    # runs = [102, 104, 106,108]
 
     groups = ['vortmo', 'vortmo']
-
     runs=[93, 76]
-    
+
+    # groups = ['dlc', '.']
+    # runs = [114, 116]
 
     mask = make_mask('/data/xfm/data/2021r1/Binns_16777/raw/eiger/ctt/66249_60/')
-    mask_pol = to_polar(mask,  500-rmin,720,rmin,500,0,2*np.pi,  int(EIGER_nx/2), int(EIGER_ny/2))
+    mask_pol = to_polar(mask,  rmax-rmin,720,rmin,rmax,0,2*np.pi,  int(EIGER_nx/2), int(EIGER_ny/2))
     mask_cor = polar_angular_correlation(mask_pol)
+
 
     for run, group in zip(runs,groups):
 
         path = f'/data/xfm/data/2021r1/Binns_16777/raw/eiger/{group}/{66189+run}_{run}/'
 
-
-        #####Read H5
+        d_cor = correlate_run(path,rmax-rmin,720,rmin,rmax,0,2*np.pi,cenx,ceny, i=1)
+        # #####Read run
         d_sum = sum_run(path, i=1)*mask
 
-        # frame = single_frame(path,0)*mask
-        # plot_fns.plot_im(frame, 'single frame')
+        # #####Create polar data
+        d_pol = to_polar(d_sum, rmax-rmin,720,rmin,rmax,0,2*np.pi, cenx, ceny)
+
+        plot_fns.plot_polar(d_pol, title=f'Data polar, {run}' , tmax=180, q=q)
 
 
-        #####Plot Data
-        # plot_fns.plot_im(d_sum, f'Data, group {group}, run {run}')
+        # plot_fns.plot_sumtheta(d_pol, q=q, title=f'{group} {run}', new_fig=False)
 
-        cenx = int(EIGER_nx/2)+0.25
-        ceny = int(EIGER_ny/2)
 
-        #####Create polar data
-        d_pol = to_polar(d_sum, 500-rmin,720,rmin,500,0,2*np.pi, cenx, ceny)
 
-        #####Plot Data (Polar)
-        # plot_fns.plot_polar(d_pol, title=f'Data Polar, group {group}, run: {run}')
-        plot_fns.plot_sumtheta(d_pol,q=q, title=f'Data Polar, sumTheta, group {group}, run: {run}')
-
-        # power = 4.0
-        # q2d = np.outer( q**power,np.ones(720))
-
-        # cth = np.outer(np.ones(len(q)), np.cos(4*np.pi*np.arange(720)/720.0) )
-        # ic = np.where(np.abs(cth)>5e-2)
-
-        # #####Create Correlation
+        # # #####Create Correlation
         # d_cor = polar_angular_correlation(d_pol, sub_tmean=True)
-        # d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
-        # d_cor *= q2d
-        # #d_cor[ic] *= 1.0/np.abs(cth[ic])
-        # #####Plot Correlation
-        # # # plot_fns.plot_polar(d_cor, title='Data Corr.' )
+        d_cor = mask_correction(d_cor.astype(mask_cor.dtype), mask_cor)
+        d_cor *= q2d
+        # # cth = np.outer(np.ones(len(q)), np.cos(2*np.pi*np.arange(360)/360.0) )
+        # # ic = np.where(np.abs(cth)>5e-2)
+        # # d_cor[ic] *= 1/np.abs(cth[ic])
+        # # d_cor[ic] *= 1.0/np.abs(cth[ic])
+        # ####Plot Correlation
+        plot_fns.plot_polar(d_cor, title=f'Data Corr, {run}' , tmax=180, q=q)
         # plt.colorbar()
         # plt.clim([np.min(d_cor)*0.1,np.max(d_cor)*0.05])
-        # plot_fns.plot_sumtheta(d_cor,q=q,  title='Data Corr., sumTheta')
-        # plt.figure()
-        # plt.plot(d_cor[71,:]) 
+        # plt.clim([0,np.max(d_cor)*0.05])
+        # # plot_fns.plot_sumtheta(d_cor,q=q,  title='Data Corr., sumTheta')
+        # # plt.figure()
+        # # plt.plot(d_cor[71,:]) 
 
 
 
 
 
 
-
-
-#     im = Image.open('testing2.png')
-    # mask = np.asarray(im)[:,:,0]
-    # x = to_polar2(mask, 100,180,0, 500, 0, 360, int(1062/2), int(1028/2))
-    # y = to_polar(mask, 100,180,0, 500, 0, 360, int(1062/2), int(1028/2))
-    # plt.figure()
-    # plt.imshow(mask)
-    # plt.title('Test Image')
-    # plt.figure()
-    # plt.imshow(x, origin='lower', extent=[0,360, 0, 500])
-    # plt.title('Unwrapped Test Image (to_polar2)')
+# #     im = Image.open('testing2.png')
+    # # mask = np.asarray(im)[:,:,0]
+    # # x = to_polar2(mask, 100,180,0, 500, 0, 360, int(1062/2), int(1028/2))
+    # # y = to_polar(mask, 100,180,0, 500, 0, 360, int(1062/2), int(1028/2))
+    # # plt.figure()
+    # # plt.imshow(mask)
+    # # plt.title('Test Image')
+    # # plt.figure()
+    # # plt.imshow(x, origin='lower', extent=[0,360, 0, 500])
+    # # plt.title('Unwrapped Test Image (to_polar2)')
 
 
 

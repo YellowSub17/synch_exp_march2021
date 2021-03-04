@@ -3,8 +3,9 @@ import numpy as np
 
 
 
-def plot_sumtheta(pol, q=np.array([]), title=''):
-    plt.figure()
+def plot_sumtheta(pol, q=np.array([]), title='', new_fig=True):
+    if new_fig:
+        plt.figure()
     if q.size == 0:
         plt.plot(np.sum(np.abs(pol),axis=1))
         plt.xlabel('r [pix]')
@@ -15,27 +16,30 @@ def plot_sumtheta(pol, q=np.array([]), title=''):
     plt.title(f'{title}')
     plt.ylabel('intensity')
 
-def plot_q(pol, iq, title=''):
-    plt.figure()
+def plot_q(pol, iq, title='',new_fig=True):
+    if new_fig:
+        plt.figure()
     plt.plot(np.abs(pol[iq,:]))
     plt.title(f'{title}')
     plt.xlabel('theta')
     plt.ylabel('intensity')
 
-def plot_polar(pol, q=None, title=''):
-    plt.figure()
+def plot_polar(pol, q=None, title='',new_fig=True, tmax=360):
+    if new_fig:
+        plt.figure()
     if q is None:
-        plt.imshow(pol, origin='lower', extent=[0,360, 0, pol.shape[0]],aspect='auto')
+        plt.imshow(pol, origin='lower', extent=[0,tmax, 0, pol.shape[0]],aspect='auto')
         plt.ylabel('r [pix]')
     else:
-        plt.imshow(pol, origin='lower', extent=[0,360, 0, q[-1]],aspect='auto')
+        plt.imshow(pol, origin='lower', extent=[0,tmax, 0, q[-1]],aspect='auto')
         plt.ylabel('q [A-1]')
 
     plt.xlabel('theta')
     plt.title(f'{title}')
 
-def plot_im(im, title=''):
-    plt.figure()
+def plot_im(im, title='',new_fig=True):
+    if new_fig:
+        plt.figure()
     plt.imshow(im)
     plt.title(f'{title}')
 
